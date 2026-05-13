@@ -59,6 +59,17 @@ export function createSSEStream(options = {}) {
   let accumulatedThinking = "";
   let ttftAt = null;
 
+  // Keep only a small preview of streamed text for observability.
+  // Before this cap, long coding-agent streams were accumulated fully in RAM until
+  // completion, which can push the Node heap into multi-GB usage.
+  const maxCaptureChars = Math.max(0, Number(process.env.STREAM_CAPTURE_MAX_CHARS || 20000));
+  const appendCaptured = (current, text) => {
+    if (!maxCaptureChars || !text || current.endsWith("\n...[truncated]")) return current;
+    const next = current + text;
+    if (next.length <= maxCaptureChars) return next;
+    return next.slice(0, maxCaptureChars) + "\n...[truncated]";
+  };
+
   return new TransformStream({
     transform(chunk, controller) {
       if (!ttftAt) {
@@ -115,11 +126,11 @@ export function createSSEStream(options = {}) {
               const reasoning = delta?.reasoning_content;
               if (content && typeof content === "string") {
                 totalContentLength += content.length;
-                accumulatedContent += content;
+                accumulatedContent = appendCaptured(accumulatedContent, content);
               }
               if (reasoning && typeof reasoning === "string") {
                 totalContentLength += reasoning.length;
-                accumulatedThinking += reasoning;
+                accumulatedThinking = appendCaptured(accumulatedThinking, reasoning);
               }
 
               const extracted = extractUsage(parsed);
@@ -177,23 +188,23 @@ export function createSSEStream(options = {}) {
         // Claude format - content
         if (parsed.delta?.text) {
           totalContentLength += parsed.delta.text.length;
-          accumulatedContent += parsed.delta.text;
+          accumulatedContent = appendCaptured(accumulatedContent, parsed.delta.text);
         }
         // Claude format - thinking
         if (parsed.delta?.thinking) {
           totalContentLength += parsed.delta.thinking.length;
-          accumulatedThinking += parsed.delta.thinking;
+          accumulatedThinking = appendCaptured(accumulatedThinking, parsed.delta.thinking);
         }
         
         // OpenAI format - content
         if (parsed.choices?.[0]?.delta?.content) {
           totalContentLength += parsed.choices[0].delta.content.length;
-          accumulatedContent += parsed.choices[0].delta.content;
+          accumulatedContent = appendCaptured(accumulatedContent, parsed.choices[0].delta.content);
         }
         // OpenAI format - reasoning
         if (parsed.choices?.[0]?.delta?.reasoning_content) {
           totalContentLength += parsed.choices[0].delta.reasoning_content.length;
-          accumulatedThinking += parsed.choices[0].delta.reasoning_content;
+          accumulatedThinking = appendCaptured(accumulatedThinking, parsed.choices[0].delta.reasoning_content);
         }
         
         // Gemini format
@@ -203,9 +214,9 @@ export function createSSEStream(options = {}) {
               totalContentLength += part.text.length;
               // Check if this is thinking content
               if (part.thought === true) {
-                accumulatedThinking += part.text;
+                accumulatedThinking = appendCaptured(accumulatedThinking, part.text);
               } else {
-                accumulatedContent += part.text;
+                accumulatedContent = appendCaptured(accumulatedContent, part.text);
               }
             }
           }

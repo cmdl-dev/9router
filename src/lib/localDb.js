@@ -27,11 +27,13 @@ const DEFAULT_SETTINGS = {
   comboStrategies: {},
   requireLogin: true,
   tunnelDashboardAccess: true,
-  observabilityEnabled: true,
-  observabilityMaxRecords: 1000,
+  // Observability stores request/response previews on disk and in-process before
+  // flushing. Keep it conservative by default for long-running local routers.
+  observabilityEnabled: false,
+  observabilityMaxRecords: 100,
   observabilityBatchSize: 20,
   observabilityFlushIntervalMs: 5000,
-  observabilityMaxJsonSize: 1024,
+  observabilityMaxJsonSize: 256,
   outboundProxyEnabled: false,
   outboundProxyUrl: "",
   outboundNoProxy: "",

@@ -12,10 +12,30 @@ const OPTIONAL_PARAMS = [
   "user", "parallel_tool_calls"
 ];
 
+const MAX_DETAIL_MESSAGES = Math.max(0, Number(process.env.REQUEST_DETAIL_MAX_MESSAGES || 20));
+const MAX_DETAIL_STRING_CHARS = Math.max(0, Number(process.env.REQUEST_DETAIL_MAX_STRING_CHARS || 2000));
+
+function truncateForDetail(value, depth = 0) {
+  if (value == null) return value;
+  if (typeof value === "string") {
+    if (!MAX_DETAIL_STRING_CHARS || value.length <= MAX_DETAIL_STRING_CHARS) return value;
+    return value.slice(0, MAX_DETAIL_STRING_CHARS) + `\n...[truncated ${value.length - MAX_DETAIL_STRING_CHARS} chars]`;
+  }
+  if (typeof value !== "object") return value;
+  if (depth >= 6) return "[Max depth reached]";
+  if (Array.isArray(value)) return value.map(v => truncateForDetail(v, depth + 1));
+  const out = {};
+  for (const [k, v] of Object.entries(value)) out[k] = truncateForDetail(v, depth + 1);
+  return out;
+}
+
 export function extractRequestConfig(body, stream) {
-  const config = { messages: body.messages || [], model: body.model, stream };
+  const messages = Array.isArray(body.messages)
+    ? body.messages.slice(-MAX_DETAIL_MESSAGES).map(m => truncateForDetail(m))
+    : [];
+  const config = { messages, model: body.model, stream };
   for (const param of OPTIONAL_PARAMS) {
-    if (body[param] !== undefined) config[param] = body[param];
+    if (body[param] !== undefined) config[param] = truncateForDetail(body[param]);
   }
   return config;
 }

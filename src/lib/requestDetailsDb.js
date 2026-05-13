@@ -6,10 +6,10 @@ import { DATA_DIR } from "@/lib/dataDir.js";
 
 const isCloud = typeof caches !== "undefined" && typeof caches === "object";
 
-const DEFAULT_MAX_RECORDS = 200;
+const DEFAULT_MAX_RECORDS = 100;
 const DEFAULT_BATCH_SIZE = 20;
 const DEFAULT_FLUSH_INTERVAL_MS = 5000;
-const DEFAULT_MAX_JSON_SIZE = 5 * 1024; // 5KB default, configurable via settings
+const DEFAULT_MAX_JSON_SIZE = 256 * 1024; // bytes, configurable via settings/env
 const CONFIG_CACHE_TTL_MS = 5000;
 const MAX_TOTAL_DB_SIZE = 50 * 1024 * 1024; // 50MB hard limit for total DB file
 const DB_FILE = isCloud ? null : path.join(DATA_DIR, "request-details.json");
@@ -45,16 +45,16 @@ async function getObservabilityConfig() {
     const { getSettings } = await import("@/lib/localDb");
     const settings = await getSettings();
     const envEnabled = process.env.OBSERVABILITY_ENABLED !== "false";
-    const enabled = typeof settings.enableObservability === "boolean"
-      ? settings.enableObservability
-      : envEnabled;
+    const enabled = typeof settings.observabilityEnabled === "boolean"
+      ? settings.observabilityEnabled
+      : (typeof settings.enableObservability === "boolean" ? settings.enableObservability : envEnabled);
 
     cachedConfig = {
       enabled,
       maxRecords: settings.observabilityMaxRecords || parseInt(process.env.OBSERVABILITY_MAX_RECORDS || String(DEFAULT_MAX_RECORDS), 10),
       batchSize: settings.observabilityBatchSize || parseInt(process.env.OBSERVABILITY_BATCH_SIZE || String(DEFAULT_BATCH_SIZE), 10),
       flushIntervalMs: settings.observabilityFlushIntervalMs || parseInt(process.env.OBSERVABILITY_FLUSH_INTERVAL_MS || String(DEFAULT_FLUSH_INTERVAL_MS), 10),
-      maxJsonSize: (settings.observabilityMaxJsonSize || parseInt(process.env.OBSERVABILITY_MAX_JSON_SIZE || "5", 10)) * 1024,
+      maxJsonSize: (settings.observabilityMaxJsonSize || parseInt(process.env.OBSERVABILITY_MAX_JSON_SIZE || "256", 10)) * 1024,
     };
   } catch {
     cachedConfig = {
